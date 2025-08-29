@@ -1,80 +1,117 @@
 # n8n + BigQuery Marketing Metrics
 
-This repository contains n8n workflows to automate:
-- **Ingestion (Drive → GCS → BigQuery)**  
-- **HTTP API endpoint** to fetch rows by date interval  
-- **Monthly CAC/ROAS report** (email)  
-- **Tool workflow** to compare CAC/ROAS between two months (for agents/automations)
+This repository contains n8n workflows to automate marketing data ingestion, analysis, and reporting using Google BigQuery.
 
-> **Note**: Workflows reference Google Cloud resources but **do not** include any credentials. You must configure credentials in n8n after import.
+> **Note**: These workflows reference Google Cloud resources but **do not** include credentials. Configure them in n8n after import.
 
 ---
 
-## Workflows in this repo
+## Workflows
 
-- `Ingestion___Drive.json` — Watches a Google Drive folder, uploads CSVs to Google Cloud Storage (GCS) and loads them to BigQuery with schema autodetect (via jobs API).  
-- `API_sql_endpoint.json` — Exposes `POST /metrics` to return table rows between `from_date` and `to_date`.  
-- `Monthly_Query.json` — Computes CAC & ROAS for two calendar months and emails an HTML table.  
-- `BigQuery_Tool.json` — Helper workflow to compute CAC/ROAS for two months (YYYY-MM).  
-- `AI_Query.json` — Optional: an AI agent that calls the tool workflow and formats results.
+### 1. Ingestion – Drive (`Ingestion___Drive.json`)
+**Purpose**  
+- Watches a Google Drive folder for new CSV files.  
+- Downloads the file, uploads it to a Google Cloud Storage (GCS) bucket.  
+- Creates/ensures a BigQuery dataset exists.  
+- Runs a BigQuery `LOAD DATA` job with `autodetect` enabled.  
 
-Data table expected columns:
+**Setup**  
+- Update the Drive folder ID to your own folder.  
+- Update the GCS bucket name (`N8N_GCS_BUCKET`).  
+- Ensure the dataset and table logic matches your requirements.  
+
+**Expected columns in the CSV**  
 ```
 date, platform, account, campaign, country, device, spend, clicks, impressions, conversions
 ```
 
 ---
 
+### 2. API SQL Endpoint (`API_sql_endpoint.json`)
+**Purpose**  
+- Exposes a Webhook endpoint:  
+  ```
+  POST /webhook/metrics
+  ```
+- Accepts JSON body:  
+  ```json
+  { "from_date": "YYYY-MM-DD", "to_date": "YYYY-MM-DD" }
+  ```
+- Runs a BigQuery query returning all rows between the given dates.  
+
+**Setup**  
+- Import workflow, re-assign BigQuery credentials.  
+- (Optional) Enable Basic Auth or a secret header for production security.  
+
+**Test Example**  
+```bash
+curl -X POST https://<your-n8n>/webhook/metrics   -H 'Content-Type: application/json'   -d '{ "from_date": "2025-06-01", "to_date": "2025-06-30" }'
+```
+
+---
+
+### 3. Monthly Query (`Monthly_Query.json`)
+**Purpose**  
+- Scheduled workflow (via Cron).  
+- Runs a BigQuery query comparing **current month vs previous month**.  
+- Computes **CAC** (spend/conversions) and **ROAS** (revenue/spend).  
+- Formats results into an HTML table.  
+- Sends the table via Gmail.  
+
+**Setup**  
+- Set up Gmail credentials.  
+- Update recipient (`N8N_EMAIL_TO`).  
+- Adjust Cron node to match desired schedule (e.g., first day of the month).  
+
+**Output**  
+- HTML email with table comparing CAC & ROAS between two months.  
+
+---
+
+### 4. BigQuery Tool (`BigQuery_Tool.json`)
+**Purpose**  
+- Provides a callable sub-workflow for other flows or agents.  
+- Accepts two months (`YYYY-MM`) as input (e.g., `"2025-05"`, `"2025-06"`).  
+- Returns CAC and ROAS values for those two months, with deltas.  
+
+**Usage**  
+- Call this workflow from another n8n workflow using *Execute Workflow*.  
+- Or connect to an external AI agent.  
+
+---
+
+### 5. AI Query (`AI_Query.json`)
+**Purpose**  
+- Demonstrates how an AI agent can use the BigQuery Tool to answer questions like:  
+  - "Compare CAC between May and June 2025"  
+  - "What is the ROAS last month vs the previous one?"  
+- Uses a system prompt that maps natural language to tool calls.  
+
+**Setup**  
+- Provide your own OpenAI/LLM credentials in n8n.  
+- Adjust the system prompt to match your requirements.  
+
+**Output**  
+- JSON with CAC and ROAS comparisons, optionally formatted into text/table by the agent.  
+
+---
+
 ## Prerequisites
 
 - n8n (self-hosted or Desktop)
-- Google Cloud project with:
-  - **BigQuery** enabled and a dataset (e.g., `ads_spend`)
-  - **GCS bucket** in the same multi‑region/region as your dataset (e.g., `US`)
-- n8n Credentials:
-  - **Google BigQuery** (OAuth2 or Service Account)
-  - **Google Drive** (for ingestion), optional if not using ingestion
-  - **Gmail** (for monthly email), optional
-
-Minimum permissions:
-- BigQuery: *BigQuery Job User* + *BigQuery Data Editor* (dataset-level)
-- GCS: *Storage Object Viewer* (and *Object Creator* if writing)
-- Drive: read access to the watched folder
+- Google Cloud project with BigQuery and GCS enabled
+- Credentials in n8n for:
+  - BigQuery (OAuth2 or Service Account)
+  - Google Drive (for ingestion)
+  - Gmail (for monthly email)
 
 ---
 
-## Quick Start
+## Environment Configuration
 
-1. **Clone** this repository.
-2. Copy environment sample and set your values:
-   ```bash
-   cp .env.sample .env
-   ```
-3. **Start n8n** (ensure it can read your `.env` — for Docker, pass `--env-file .env` or map envs).
-4. In n8n, **import** each workflow JSON via *Workflows → Import from file*:
-   - `Ingestion___Drive.json`
-   - `API_sql_endpoint.json`
-   - `Monthly_Query.json`
-   - `BigQuery_Tool.json`
-   - `AI_Query.json` (optional)
-5. Re‑assign **Credentials** in each node to your n8n credential entries.
-6. Update node expressions to reference env vars, for example:
-   - `{{$env.N8N_GCP_PROJECT_ID}}`
-   - `{{$env.N8N_GCS_BUCKET}}`
-   - `{{$env.N8N_DRIVE_FOLDER_ID}}`
-   - `{{$env.N8N_BQ_DATASET}}`
-   - `{{$env.N8N_BQ_TABLE}}`
-
-> Tip: If you prefer to hardcode values, you can, but environment variables make the repo portable and safer.
-
----
-
-## Configuration
-
-Set these environment variables (see `.env.sample`):
-
+Use the `.env.sample` file and fill values:
 ```
-N8N_GCP_PROJECT_ID=your-gcp-project-id
+N8N_GCP_PROJECT_ID=your-project-id
 N8N_GCS_BUCKET=your-gcs-bucket
 N8N_DRIVE_FOLDER_ID=your-drive-folder-id
 N8N_BQ_DATASET=ads_spend
@@ -83,60 +120,24 @@ N8N_REGION=US
 N8N_EMAIL_TO=you@example.com
 ```
 
-### Regional consistency
-Ensure your **BigQuery dataset** and **GCS bucket** are in the same region/multi‑region (e.g., `US`).
-
----
-
-## Using the API workflow
-
-Endpoint (after activating the workflow):
+Reference env vars inside workflow nodes as:  
 ```
-POST /webhook/metrics
-Content-Type: application/json
-{
-  "from_date": "YYYY-MM-DD",
-  "to_date":   "YYYY-MM-DD"
-}
+{{$env.N8N_GCP_PROJECT_ID}}
+{{$env.N8N_GCS_BUCKET}}
+{{$env.N8N_DRIVE_FOLDER_ID}}
 ```
 
-Example:
-```bash
-curl -X POST https://<your-n8n-host>/webhook/metrics   -H 'Content-Type: application/json'   -d '{ "from_date": "2025-06-01", "to_date": "2025-06-30" }'
-```
-
-Response: JSON rows from BigQuery within the date range, including the expected columns.
-
-> If you must send `DD-MM-YYYY`, adjust the SQL to use `PARSE_DATE('%d-%m-%Y', ...)` in the `DECLARE` statements.
-
 ---
 
-## Monthly report
+## Security Notes
 
-- The **Monthly_Query** workflow runs a BigQuery query comparing **current month vs previous month** (CAC & ROAS), builds an HTML table, and sends it via Gmail.
-- Configure recipients with `N8N_EMAIL_TO` or inside the Gmail node.
-- Use the Cron node to schedule (e.g., day 1 at 08:00, timezone of your choice).
-
----
-
-## Security notes
-
-- Project ID and resource names are **not secrets**; do **not** publish credentials (OAuth tokens, service account JSON).
-- Keep your GCS bucket **private** unless you need public access.
-- Prefer least-privilege IAM roles.
-- Enable **Webhook authentication** (Basic auth, header token, or IP allow‑list) for production endpoints.
-
----
-
-## Troubleshooting
-
-- **`Not found: URI gs://...`** — verify the exact object name written to GCS; don’t append `.csv` if your object key doesn’t have it. Ensure n8n identity has `storage.objects.get` on the bucket.
-- **`Access Denied: File gs://...`** — missing *Storage Object Viewer* on the bucket for the account running the BigQuery job.
-- **Empty current month** — data may not exist for that month; try a date interval query or a different month.
-- **Date parse errors** — ensure `YYYY-MM-DD` inputs, or change to `PARSE_DATE('%d-%m-%Y', ...)`.
+- Project ID, bucket names, and dataset names are safe to share; credentials are not.  
+- Do **not** commit exported n8n credentials.  
+- Restrict access to GCS buckets and BigQuery datasets (least privilege).  
+- Protect Webhook endpoints with Basic Auth, header tokens, or IP allow-lists.  
 
 ---
 
 ## License
 
-MIT (or choose your preferred license)
+MIT (or your preferred license)
