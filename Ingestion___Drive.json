@@ -1,0 +1,363 @@
+{
+  "name": "Ingestion - Drive",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        120
+      ],
+      "id": "16dc69eb-53b7-4a76-b1d7-3fc47f810b45",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a9bc2211-22bc-45f2-98c3-e9c251aaebc5",
+              "name": "load_date",
+              "value": "={{ $now.toFormat('yyyy-LL-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "7b62a602-2bc5-4ddf-a9bb-8d3aaf68b47b",
+              "name": "source_file_name",
+              "value": "={{ $binary.data.fileName }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        -80
+      ],
+      "id": "df779837-8a20-4ea4-935c-cdb58704c1c2",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "mode": "combineBySql",
+        "query": "SELECT *\nFROM input1\nCROSS JOIN input2\n"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        740,
+        0
+      ],
+      "id": "cf0369f9-ea3f-4f4a-a8ee-b11531e5b033",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "={{ $json.source_file_name }}"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ],
+      "id": "801a92ce-2f29-45ec-911b-3cb273820725",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "resource": "object",
+        "operation": "create",
+        "bucketName": "gerardo-baas-data-test",
+        "objectName": "={{ $binary.data.fileName.trim().replace(/\\.[^/.]+$/, \"\").replace(/\\./g,\"-\").toLowerCase() + \"-\" + $now.toFormat(\"yyyyLLdd\") }}",
+        "createData": {},
+        "createQuery": {},
+        "encryptionHeaders": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.googleCloudStorage",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        0
+      ],
+      "id": "5641c5c4-bd5d-4f14-bdd3-73b55b2af105",
+      "name": "Google Cloud Storage",
+      "retryOnFail": true,
+      "credentials": {
+        "googleCloudStorageOAuth2Api": {
+          "id": "uNEdhb0T0k1TO61x",
+          "name": "Google Cloud Storage account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1Vml0mDBoaYXZn4RhEct3UCbXKXRxmvPY",
+          "mode": "list",
+          "cachedResultName": "CSV to BigQuery",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1Vml0mDBoaYXZn4RhEct3UCbXKXRxmvPY"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        0
+      ],
+      "id": "7dfb6dfe-03a4-4bef-b423-88c4fdba55ec",
+      "name": "Google Drive Trigger",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "zt3zFbevVil3Mtz3",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        80,
+        0
+      ],
+      "id": "27e8c11c-edd0-4578-8e76-1cc6ff7a53b5",
+      "name": "Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "zt3zFbevVil3Mtz3",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "micro-environs-470317-s2",
+          "mode": "list",
+          "cachedResultName": "N8N-BigQuery",
+          "cachedResultUrl": "https://console.cloud.google.com/bigquery?project=micro-environs-470317-s2"
+        },
+        "sqlQuery": "CREATE SCHEMA IF NOT EXISTS `micro-environs-470317-s2.{{ $json.DatasetID }}`;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        0
+      ],
+      "id": "8f94178d-8e32-43db-9498-1715613b2765",
+      "name": "Google BigQuery",
+      "executeOnce": true,
+      "credentials": {
+        "googleBigQueryOAuth2Api": {
+          "id": "STeFwgE0ui3GimJT",
+          "name": "Google BigQuery account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0957d89c-89aa-4378-b094-62d64027440d",
+              "name": "DatasetID",
+              "value": "={{ $('Google Cloud Storage').item.json.name.split('-')[0] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1400,
+        0
+      ],
+      "id": "e8c5a555-ee90-4371-b81e-648f391b51dc",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/bigquery/v2/projects/micro-environs-470317-s2/jobs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleBigQueryOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"configuration\": {\n    \"load\": {\n      \"destinationTable\": {\n        \"projectId\": \"micro-environs-470317-s2\",\n        \"datasetId\": \"{{ $('Edit Fields1').item.json.DatasetID }}\",\n        \"tableId\": \"{{ $('Google Cloud Storage').item.json.name }}\"\n      },\n      \"sourceUris\": [\"gs://{{ $('Google Cloud Storage').item.json.bucket }}/{{ $('Google Cloud Storage').item.json.name }}\"],\n      \"sourceFormat\": \"CSV\",\n      \"skipLeadingRows\": 1,\n      \"autodetect\": true,\n      \"writeDisposition\": \"WRITE_TRUNCATE\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        0
+      ],
+      "id": "ebf1197f-a440-4ccb-b6f3-ba20460f7b00",
+      "name": "HTTP Request",
+      "credentials": {
+        "googleBigQueryOAuth2Api": {
+          "id": "STeFwgE0ui3GimJT",
+          "name": "Google BigQuery account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Google Cloud Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Cloud Storage": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Google BigQuery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google BigQuery": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d10c6d47-e492-44e0-acd2-6e9930de361b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fac7a55f022ebace3950854e2f1d059d674c88214cd45555c64fe530b6e19dcf"
+  },
+  "id": "fPEqIMHpJC2a1Otz",
+  "tags": []
+}

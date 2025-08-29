@@ -1,0 +1,125 @@
+{
+  "name": "API sql endpoint",
+  "nodes": [
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "micro-environs-470317-s2",
+          "mode": "list",
+          "cachedResultName": "N8N-BigQuery",
+          "cachedResultUrl": "https://console.cloud.google.com/bigquery?project=micro-environs-470317-s2"
+        },
+        "sqlQuery": "-- Set your range (replace or bind from n8n)\nDECLARE start_date DATE DEFAULT DATE(\"{{ $json.body.from_date }}\");\nDECLARE end_date   DATE DEFAULT DATE(\"{{ $json.body.to_date }}\");\n\nSELECT\n  DATE(date)    AS date,\n  platform,\n  account,\n  campaign,\n  country,\n  device,\n  spend,\n  clicks,\n  impressions,\n  conversions\nFROM `micro-environs-470317-s2.ads_spend`.`ads_spend-20250828`\nWHERE DATE(date) BETWEEN start_date AND end_date\nORDER BY date, platform, campaign;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [
+        200,
+        0
+      ],
+      "id": "c77f1689-28f4-498c-bf6d-467d98b2bd30",
+      "name": "Google BigQuery",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleBigQueryOAuth2Api": {
+          "id": "STeFwgE0ui3GimJT",
+          "name": "Google BigQuery account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "path": "metrics",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d3510639-5a7d-4b75-ba1f-0f8a50e90e84",
+      "name": "Webhook",
+      "webhookId": "838b9f35-42c1-46af-86a4-a9b39a1b5c00"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "id": "1fcd2f5a-b6fe-440d-8fae-a6111119e7d4",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "items",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        420,
+        0
+      ],
+      "id": "386762c2-ff62-4143-9f41-03bca05d9d7d",
+      "name": "Aggregate"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google BigQuery": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Google BigQuery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e36c7dfe-e663-4ddd-b42b-9c2872499e96",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fac7a55f022ebace3950854e2f1d059d674c88214cd45555c64fe530b6e19dcf"
+  },
+  "id": "XqtfL8XBCZdE2PWE",
+  "tags": []
+}

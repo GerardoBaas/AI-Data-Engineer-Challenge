@@ -1,0 +1,175 @@
+{
+  "name": "AI Query",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        20,
+        -220
+      ],
+      "id": "f2f58f59-0d93-49e8-8950-29c8d4da8146",
+      "name": "When chat message received",
+      "webhookId": "d9416a76-7364-4b67-bc6f-ae5e9e3f6990"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=Today is {{ $now }}\nYou are an AI agent with access to the n8n tool Compare_CAC_ROAS.\nThis tool compares CAC (Customer Acquisition Cost) and ROAS (Return On Ad Spend) for a given period of time.\n\nYou must always call the tool when the user asks to compare CAC, ROAS, or performance between months or date ranges.\n\nThe tool expects two inputs:\n\nfrom_date: start of the interval\n\nto_date: end of the interval\n\nDates must be in the format YYYY-MM (for example: 2025-05, 2025-06).\n\nThe tool returns a JSON object with CAC and ROAS metrics for the requested interval.\n\nYour job is to interpret the user request, extract the months, and call the tool with the correct parameters.\n\nImportant rules:\n\nIf the user specifies months in words (e.g., “May 2025”), you must convert them into YYYY-MM.\n\nIf the user asks for “last month” or “previous month,” compute the proper value relative to today.\n\nAlways validate that both from_date and to_date are present before calling the tool.\n\nAfter receiving the tool output, explain the result in plain language and, if useful, format the CAC/ROAS comparison in a table."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        320,
+        -220
+      ],
+      "id": "639030f0-07ba-4f9d-b719-514232b08e23",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-pro",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        200,
+        -20
+      ],
+      "id": "21736dde-e9aa-464c-9158-104ee64167d9",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DOA26vz9tRK5SLxt",
+          "name": "Google Gemini(PaLM) Api Muestra"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        360,
+        -20
+      ],
+      "id": "368e4b05-e8cb-494d-b99b-ac19d7da3f50",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "name": "Compare_CAC_ROAS",
+        "description": "Use this tool to compare the CAC and ROAS from a period of time. You have to send the months in format %Y-%m, ",
+        "workflowId": {
+          "__rl": true,
+          "value": "rh9hP8u46S8xNacC",
+          "mode": "list",
+          "cachedResultName": "BigQuery Tool"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "from_date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('from_date', ``, 'string') }}",
+            "to_date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('to_date', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "from_date",
+              "displayName": "from_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "to_date",
+              "displayName": "to_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.1,
+      "position": [
+        600,
+        20
+      ],
+      "id": "0655cc03-9811-40e7-8d25-e7847910cfed",
+      "name": "Call n8n Workflow Tool"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call n8n Workflow Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f2f50a3a-f7dd-4184-b3f1-6ac0cf5d15df",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fac7a55f022ebace3950854e2f1d059d674c88214cd45555c64fe530b6e19dcf"
+  },
+  "id": "rNXurAWm2XRb1RQi",
+  "tags": []
+}

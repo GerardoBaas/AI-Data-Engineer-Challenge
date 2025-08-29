@@ -1,0 +1,133 @@
+{
+  "name": "Monthly Query",
+  "nodes": [
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "micro-environs-470317-s2",
+          "mode": "list",
+          "cachedResultName": "N8N-BigQuery",
+          "cachedResultUrl": "https://console.cloud.google.com/bigquery?project=micro-environs-470317-s2"
+        },
+        "sqlQuery": "-- Set the months you want to compare (YYYY-MM)\nDECLARE prev_month STRING DEFAULT \"2025-05\";\nDECLARE cur_month  STRING DEFAULT \"2025-06\";\n\nWITH src AS (\n  SELECT\n    FORMAT_DATE('%Y-%m', DATE(date)) AS ym,\n    spend,\n    conversions\n  FROM `micro-environs-470317-s2.ads_spend`.`ads_spend-20250828`\n  WHERE FORMAT_DATE('%Y-%m', DATE(date)) IN (prev_month, cur_month)\n),\nagg AS (\n  SELECT\n    ym,\n    SUM(spend) AS spend,\n    SUM(conversions) AS conv,\n    SUM(conversions) * 100.0 AS revenue\n  FROM src\n  GROUP BY ym\n),\ncur AS (  -- current month\n  SELECT spend, conv, revenue FROM agg WHERE ym = cur_month\n),\nprev AS ( -- previous month\n  SELECT spend, conv, revenue FROM agg WHERE ym = prev_month\n),\nmetrics AS (\n  SELECT 'CAC' AS metric,\n         SAFE_DIVIDE(cur.spend, NULLIF(cur.conv,0))   AS cur_v,\n         SAFE_DIVIDE(prev.spend, NULLIF(prev.conv,0)) AS prev_v\n  FROM cur, prev\n  UNION ALL\n  SELECT 'ROAS' AS metric,\n         SAFE_DIVIDE(cur.revenue, NULLIF(cur.spend,0)),\n         SAFE_DIVIDE(prev.revenue, NULLIF(prev.spend,0))\n  FROM cur, prev\n)\nSELECT\n  metric,\n  cur_month  AS current_period,\n  prev_month AS previous_period,\n  cur_v      AS current_value,\n  prev_v     AS previous_value,\n  (cur_v - prev_v) AS delta_abs,\n  SAFE_DIVIDE(cur_v - prev_v, NULLIF(prev_v,0)) AS delta_pct\nFROM metrics\nORDER BY\n  CASE metric\n    WHEN 'CAC' THEN 1\n    WHEN 'ROAS' THEN 2\n  END;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [
+        300,
+        0
+      ],
+      "id": "24229e75-27b9-4817-b5c8-eaf009279c0b",
+      "name": "Google BigQuery",
+      "credentials": {
+        "googleBigQueryOAuth2Api": {
+          "id": "STeFwgE0ui3GimJT",
+          "name": "Google BigQuery account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "35cb40cc-c7fd-4763-a3fb-7862b267111d",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "subject": "Monthly KPI",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        740,
+        0
+      ],
+      "id": "7084b137-fe69-4abc-a969-1ae1ab2301cd",
+      "name": "Gmail",
+      "webhookId": "ce78c3a9-30b0-4dac-8148-cdeb545c11a9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8i4D8lJGrZ0ulLfz",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expecting items like:\n// { metric, current_period, previous_period, current_value, previous_value, delta_abs, delta_pct }\n\nconst fmt2 = n => (n == null || n === '' ? '' : Number(n).toFixed(2));\nconst pct  = n => (n == null || n === '' ? '' : (Number(n) * 100).toFixed(2) + '%');\n\nconst first = $items()[0]?.json || {};\nconst curLabel  = first.current_period  || 'Current';\nconst prevLabel = first.previous_period || 'Previous';\n\nconst rows = $items().map(({ json }) => {\n  const deltaAbs = Number(json.delta_abs);\n  const color = deltaAbs > 0 ? '#2e7d32' : (deltaAbs < 0 ? '#c62828' : '#444');\n  const sign  = deltaAbs > 0 ? '+' : '';\n\n  return `\n    <tr>\n      <td style=\"padding:8px;border-bottom:1px solid #eee;\">${json.metric}</td>\n      <td style=\"padding:8px;text-align:right;border-bottom:1px solid #eee;\">${fmt2(json.current_value)}</td>\n      <td style=\"padding:8px;text-align:right;border-bottom:1px solid #eee;\">${fmt2(json.previous_value)}</td>\n      <td style=\"padding:8px;text-align:right;border-bottom:1px solid #eee;color:${color};\">${sign}${fmt2(deltaAbs)}</td>\n      <td style=\"padding:8px;text-align:right;border-bottom:1px solid #eee;color:${color};\">${sign}${pct(json.delta_pct)}</td>\n    </tr>`;\n}).join('');\n\nconst html = `\n<table style=\"border-collapse:collapse;width:100%;max-width:520px;font-family:Arial,Helvetica,sans-serif;font-size:14px;\">\n  <thead>\n    <tr>\n      <th style=\"text-align:left;padding:8px;border-bottom:1px solid #ddd;\">Metric</th>\n      <th style=\"text-align:right;padding:8px;border-bottom:1px solid #ddd;\">${curLabel}</th>\n      <th style=\"text-align:right;padding:8px;border-bottom:1px solid #ddd;\">${prevLabel}</th>\n      <th style=\"text-align:right;padding:8px;border-bottom:1px solid #ddd;\">Δ (abs)</th>\n      <th style=\"text-align:right;padding:8px;border-bottom:1px solid #ddd;\">Δ (%)</th>\n    </tr>\n  </thead>\n  <tbody>${rows}</tbody>\n</table>`;\n\nreturn [{ json: { html } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "fc712da2-234b-4cf3-8552-60118467a6de",
+      "name": "Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google BigQuery": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Google BigQuery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e27fca65-27f3-4a2d-aace-ebbe707b3b16",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fac7a55f022ebace3950854e2f1d059d674c88214cd45555c64fe530b6e19dcf"
+  },
+  "id": "4ncsomiEs22MtRmd",
+  "tags": []
+}
